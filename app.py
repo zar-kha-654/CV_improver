@@ -4,184 +4,244 @@ from pypdf import PdfReader
 from groq import Groq
 
 
-# ---------------------------------------------------------
+# =========================================================
 # PAGE CONFIGURATION
-# ---------------------------------------------------------
+# =========================================================
 
 st.set_page_config(
-    page_title="CV Improver AI",
+    page_title="CV Match AI",
     page_icon="📄",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # CUSTOM CSS
-# ---------------------------------------------------------
+# =========================================================
 
 st.markdown("""
 <style>
 
 .main-title {
-    font-size: 42px;
-    font-weight: 700;
+    font-size: 46px;
+    font-weight: 800;
     text-align: center;
+    margin-top: 10px;
     margin-bottom: 5px;
 }
 
 .subtitle {
     text-align: center;
-    color: #666;
     font-size: 18px;
+    color: #666666;
     margin-bottom: 35px;
+}
+
+.score-container {
+    text-align: center;
+    padding: 25px;
+    border-radius: 15px;
+    background-color: #f5f7fa;
+    margin-bottom: 25px;
+}
+
+.score-number {
+    font-size: 55px;
+    font-weight: 800;
+}
+
+.card {
+    padding: 20px;
+    border-radius: 12px;
+    background-color: #f8f9fa;
+    margin-bottom: 15px;
+}
+
+.small-text {
+    color: #666666;
+    font-size: 14px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------
+# =========================================================
 # HEADER
-# ---------------------------------------------------------
+# =========================================================
 
 st.markdown(
-    '<div class="main-title">📄 CV Improver AI</div>',
+    '<div class="main-title">📄 CV Match AI</div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
     '<div class="subtitle">'
-    'Analyze your resume against a job description and discover '
-    'exactly how to improve your CV'
+    'AI-powered resume analysis and job matching'
     '</div>',
     unsafe_allow_html=True
 )
 
 
-# ---------------------------------------------------------
-# API KEY
-# ---------------------------------------------------------
+# =========================================================
+# SIDEBAR
+# =========================================================
 
-st.sidebar.title("⚙️ Settings")
+with st.sidebar:
 
-api_key = st.sidebar.text_input(
-    "Groq API Key",
-    type="password",
-    help="Enter your Groq API key."
-)
+    st.title("⚙️ CV Match AI")
 
-if not api_key:
-    st.sidebar.info(
-        "Enter your Groq API key to analyze your CV."
+    st.markdown("""
+    ### How it works
+
+    **1.** Upload your resume
+
+    **2.** Paste the job requirements
+
+    **3.** Click Analyze CV
+
+    **4.** Get your AI-powered match report
+    """)
+
+    st.divider()
+
+    st.markdown("""
+    ### Analysis includes
+
+    ✅ Match Score
+
+    ✅ Matching Skills
+
+    ❌ Missing Skills
+
+    💼 Experience Analysis
+
+    🎓 Education Match
+
+    🔑 Keywords
+
+    ✏️ CV Improvements
+
+    📚 Learning Plan
+
+    🤖 ATS Tips
+    """)
+
+    st.divider()
+
+    st.caption("CV Match AI • Powered by Groq")
+
+
+# =========================================================
+# GET GROQ API KEY
+# =========================================================
+
+try:
+
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
+except Exception:
+
+    st.error(
+        "Groq API key is not configured. "
+        "Please add GROQ_API_KEY to your Streamlit Secrets."
     )
 
+    st.stop()
 
-# ---------------------------------------------------------
-# RESUME UPLOAD
-# ---------------------------------------------------------
 
-st.header("1️⃣ Upload Your Resume")
+# =========================================================
+# CREATE GROQ CLIENT
+# =========================================================
 
-uploaded_file = st.file_uploader(
-    "Upload your resume in PDF format",
-    type=["pdf"]
+client = Groq(
+    api_key=GROQ_API_KEY
 )
 
 
-# ---------------------------------------------------------
-# JOB DESCRIPTION
-# ---------------------------------------------------------
+# =========================================================
+# PDF TEXT EXTRACTION
+# =========================================================
 
-st.header("2️⃣ Enter Job Requirements")
+def extract_resume_text(uploaded_file):
 
-job_description = st.text_area(
-    "Paste the job description here",
-    height=300,
-    placeholder="""
-Example:
-
-We are looking for a Junior Machine Learning Engineer.
-
-Requirements:
-- Strong Python programming skills
-- Knowledge of Machine Learning
-- Experience with NumPy and Pandas
-- Knowledge of Scikit-learn
-- Understanding of SQL
-- Experience with Git and GitHub
-- Understanding of REST APIs
-- Bachelor's degree in Computer Science
-"""
-)
-
-
-# ---------------------------------------------------------
-# EXTRACT TEXT FROM PDF
-# ---------------------------------------------------------
-
-def extract_resume_text(pdf_file):
-
-    reader = PdfReader(pdf_file)
+    reader = PdfReader(uploaded_file)
 
     text = ""
 
-    for page in reader.pages:
+    for page_number, page in enumerate(reader.pages, start=1):
 
-        page_text = page.extract_text()
+        try:
 
-        if page_text:
-            text += page_text + "\n"
+            page_text = page.extract_text()
 
-    return text
+            if page_text:
+                text += page_text + "\n"
+
+        except Exception:
+
+            continue
+
+    return text.strip()
 
 
-# ---------------------------------------------------------
-# AI ANALYSIS
-# ---------------------------------------------------------
+# =========================================================
+# AI ANALYSIS FUNCTION
+# =========================================================
 
-def analyze_resume(resume_text, job_description, api_key):
-
-    client = Groq(api_key=api_key)
+def analyze_resume(resume_text, job_description):
 
     prompt = f"""
-You are an expert recruiter, ATS specialist, career advisor,
-and resume reviewer.
+You are an expert recruiter, ATS specialist, career coach,
+and technical hiring manager.
 
-Your task is to compare a candidate's resume with a specific
-job description.
+Your task is to carefully compare a candidate's resume with
+the provided job description.
 
 IMPORTANT RULES:
 
-1. Do NOT invent skills, experience, education, certifications,
-   projects, or achievements.
-2. Only consider information actually present in the resume.
-3. Clearly identify requirements that are missing.
-4. Distinguish between required qualifications and preferred
+1. Do NOT invent experience.
+2. Do NOT assume the candidate has a skill that is not shown
+   in the resume.
+3. Distinguish between required qualifications and preferred
    qualifications.
-5. Give practical recommendations that the candidate can
-   realistically act on.
-6. Never recommend lying or falsely adding experience.
-7. Evaluate the resume based on relevance to THIS specific job.
+4. Be honest and practical.
+5. Give specific CV improvement suggestions.
+6. Never tell the candidate to lie or falsely claim experience.
+7. If something is missing, clearly identify it as missing.
+8. Evaluate the actual relevance of the candidate's experience,
+   not just keyword matching.
 
-RESUME:
-----------------
+=========================================================
+CANDIDATE RESUME
+=========================================================
+
 {resume_text}
-----------------
 
-JOB DESCRIPTION:
-----------------
+=========================================================
+JOB DESCRIPTION
+=========================================================
+
 {job_description}
-----------------
 
-Calculate a CV match score from 0 to 100.
+=========================================================
+SCORING SYSTEM
+=========================================================
 
-Use these approximate weights:
+Calculate a match score from 0 to 100.
+
+Use approximately:
 
 Skills: 30%
 Relevant Experience: 30%
 Job Responsibilities: 20%
 Education: 10%
-Tools and Keywords: 10%
+Tools / Keywords: 10%
+
+=========================================================
+REQUIRED JSON FORMAT
+=========================================================
 
 Return ONLY valid JSON.
 
@@ -190,63 +250,84 @@ Use exactly this structure:
 {{
     "match_score": 0,
 
-    "recommendation": "Strong Match / Moderate Match / Weak Match",
+    "recommendation": "Strong Match",
 
-    "summary": "Short explanation of the candidate's overall suitability.",
+    "summary": "Short but meaningful explanation of the overall match.",
+
+    "skills_score": 0,
+
+    "experience_score": 0,
+
+    "responsibilities_score": 0,
+
+    "education_score": 0,
+
+    "keywords_score": 0,
 
     "matching_skills": [
-        "Skills from the resume that match the job"
+        "Python",
+        "Git"
     ],
 
     "missing_skills": [
-        "Important skills required by the job that are not demonstrated"
+        "Docker",
+        "TensorFlow"
     ],
 
     "matching_experience": [
-        "Relevant experience demonstrated in the resume"
+        "Specific relevant experience found in the resume"
     ],
 
     "missing_experience": [
-        "Relevant experience required by the job but not demonstrated"
+        "Specific experience required by the job but not demonstrated"
     ],
 
     "education_match": "Explain whether the candidate's education matches the requirement.",
 
     "matching_keywords": [
-        "Important job-related keywords already present in the CV"
+        "Python",
+        "Machine Learning"
     ],
 
     "missing_keywords": [
-        "Important job-related keywords missing from the CV"
+        "FastAPI",
+        "Docker"
     ],
 
     "cv_changes": [
-        "Specific changes the candidate should make to their CV"
+        "Specific change the candidate should make to their CV."
     ],
 
-    "improvement_plan": [
-        "Skills, projects, certifications, or experience the candidate should develop"
+    "experience_required": [
+        "Experience the candidate should gain to become a stronger candidate."
+    ],
+
+    "learning_plan": [
+        "Specific skill or technology the candidate should learn."
     ],
 
     "ats_tips": [
-        "Specific ATS optimization recommendations"
+        "Specific ATS optimization suggestion."
+    ],
+
+    "strengths": [
+        "Major strength of the candidate."
+    ],
+
+    "weaknesses": [
+        "Major weakness or gap."
     ]
 }}
 
-Be specific.
+The recommendation must be one of:
 
-For example, instead of saying:
+"Strong Match"
+"Good Match"
+"Moderate Match"
+"Weak Match"
+"Very Weak Match"
 
-"Improve your Python skills."
-
-Say:
-
-"Add specific Python projects to the Projects section and
-mention the Python libraries used, such as Pandas or NumPy,
-if you have actually used them."
-
-Do not recommend adding a technology unless the candidate
-actually has experience with it.
+Keep the analysis specific to THIS resume and THIS job.
 """
 
 
@@ -254,26 +335,26 @@ actually has experience with it.
 
         model="llama-3.3-70b-versatile",
 
-        temperature=0.2,
-
-        response_format={
-            "type": "json_object"
-        },
-
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "You are an expert recruitment, ATS, "
-                    "and career analysis assistant."
+                    "You are a professional recruitment AI "
+                    "that produces accurate and honest resume "
+                    "analysis."
                 )
             },
-
             {
                 "role": "user",
                 "content": prompt
             }
-        ]
+        ],
+
+        temperature=0.2,
+
+        response_format={
+            "type": "json_object"
+        }
     )
 
 
@@ -282,94 +363,197 @@ actually has experience with it.
     return json.loads(result)
 
 
-# ---------------------------------------------------------
-# ANALYZE BUTTON
-# ---------------------------------------------------------
+# =========================================================
+# RESUME UPLOAD
+# =========================================================
 
-if st.button(
+st.header("📄 1. Upload Your Resume")
+
+uploaded_file = st.file_uploader(
+    "Upload your resume as a PDF",
+    type=["pdf"],
+    help="Only PDF resumes are supported."
+)
+
+
+if uploaded_file:
+
+    st.success(
+        f"Uploaded: {uploaded_file.name}"
+    )
+
+
+# =========================================================
+# JOB REQUIREMENTS
+# =========================================================
+
+st.header("💼 2. Enter Job Requirements")
+
+job_description = st.text_area(
+
+    "Paste the complete job description here",
+
+    height=300,
+
+    placeholder="""Example:
+
+Junior Machine Learning Engineer
+
+We are looking for a Junior Machine Learning Engineer
+to join our AI team.
+
+Requirements:
+- Bachelor's degree in Computer Science
+- Strong Python programming
+- Machine Learning fundamentals
+- NumPy, Pandas and Scikit-learn
+- SQL
+- REST APIs
+- Git and GitHub
+- Data Structures and Algorithms
+- Experience with ML projects
+
+Preferred:
+- TensorFlow or PyTorch
+- LLMs and Generative AI
+- Hugging Face
+- Streamlit
+- Docker
+"""
+)
+
+
+# =========================================================
+# ANALYZE BUTTON
+# =========================================================
+
+st.divider()
+
+analyze_button = st.button(
     "🚀 Analyze My CV",
     type="primary",
     use_container_width=True
-):
+)
 
-    if not api_key:
 
-        st.error(
-            "Please enter your Groq API key in the sidebar."
-        )
+if analyze_button:
 
-    elif not uploaded_file:
+    # -----------------------------------------------------
+    # VALIDATION
+    # -----------------------------------------------------
 
-        st.error(
-            "Please upload your resume first."
-        )
-
-    elif not job_description.strip():
+    if uploaded_file is None:
 
         st.error(
-            "Please enter the job description."
+            "❌ Please upload your resume first."
         )
 
-    else:
-
-        with st.spinner(
-            "🤖 AI is analyzing your CV..."
-        ):
-
-            try:
-
-                resume_text = extract_resume_text(
-                    uploaded_file
-                )
-
-                if not resume_text.strip():
-
-                    st.error(
-                        "Could not extract text from this PDF. "
-                        "Please upload a text-based PDF."
-                    )
-
-                    st.stop()
+        st.stop()
 
 
-                result = analyze_resume(
-                    resume_text,
-                    job_description,
-                    api_key
-                )
+    if not job_description.strip():
+
+        st.error(
+            "❌ Please enter the job requirements."
+        )
+
+        st.stop()
 
 
-                st.session_state["analysis"] = result
+    # -----------------------------------------------------
+    # EXTRACT RESUME
+    # -----------------------------------------------------
+
+    with st.spinner("📖 Reading your resume..."):
+
+        resume_text = extract_resume_text(
+            uploaded_file
+        )
 
 
-            except Exception as e:
+    if not resume_text:
 
-                st.error(
-                    f"Something went wrong: {str(e)}"
-                )
+        st.error(
+            "❌ I couldn't extract text from this PDF. "
+            "Please make sure your PDF contains selectable text."
+        )
+
+        st.stop()
 
 
-# ---------------------------------------------------------
+    # -----------------------------------------------------
+    # LIMIT EXTREMELY LARGE RESUMES
+    # -----------------------------------------------------
+
+    if len(resume_text) > 50000:
+
+        resume_text = resume_text[:50000]
+
+
+    # -----------------------------------------------------
+    # AI ANALYSIS
+    # -----------------------------------------------------
+
+    with st.spinner(
+        "🤖 AI is comparing your CV with the job requirements..."
+    ):
+
+        try:
+
+            analysis = analyze_resume(
+                resume_text,
+                job_description
+            )
+
+        except json.JSONDecodeError:
+
+            st.error(
+                "❌ The AI returned an invalid analysis format. "
+                "Please try again."
+            )
+
+            st.stop()
+
+        except Exception as e:
+
+            st.error(
+                f"❌ Something went wrong: {str(e)}"
+            )
+
+            st.stop()
+
+
+    # Save result
+
+    st.session_state["analysis"] = analysis
+
+
+# =========================================================
 # DISPLAY RESULTS
-# ---------------------------------------------------------
+# =========================================================
 
 if "analysis" in st.session_state:
 
-    result = st.session_state["analysis"]
+    analysis = st.session_state["analysis"]
 
     st.divider()
 
-    st.header("📊 CV Analysis")
+    st.header("📊 Your CV Match Report")
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # SCORE
-    # -----------------------------------------------------
+    # =====================================================
 
-    score = result.get(
-        "match_score",
-        0
+    score = int(
+        analysis.get("match_score", 0)
     )
+
+    recommendation = analysis.get(
+        "recommendation",
+        "Unknown"
+    )
+
 
     col1, col2, col3 = st.columns(3)
 
@@ -386,10 +570,7 @@ if "analysis" in st.session_state:
 
         st.metric(
             "Recommendation",
-            result.get(
-                "recommendation",
-                "N/A"
-            )
+            recommendation
         )
 
 
@@ -397,67 +578,146 @@ if "analysis" in st.session_state:
 
         if score >= 80:
 
-            status = "Excellent"
+            fit = "Excellent Fit"
 
-        elif score >= 60:
+        elif score >= 65:
 
-            status = "Good"
+            fit = "Good Fit"
 
-        elif score >= 40:
+        elif score >= 50:
 
-            status = "Needs Improvement"
+            fit = "Needs Improvement"
 
         else:
 
-            status = "Low Match"
+            fit = "Low Fit"
 
 
         st.metric(
             "Overall Fit",
-            status
+            fit
         )
 
 
     st.progress(
-        min(max(score, 0), 100) / 100
+        max(0, min(score, 100)) / 100
     )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # SUMMARY
-    # -----------------------------------------------------
+    # =====================================================
 
-    st.subheader("📝 Overall Summary")
+    st.subheader("📝 Overall Assessment")
 
     st.write(
-        result.get(
+        analysis.get(
             "summary",
-            ""
+            "No summary available."
         )
     )
 
 
-    # -----------------------------------------------------
+    # =====================================================
+    # SCORE BREAKDOWN
+    # =====================================================
+
+    st.subheader("📈 Score Breakdown")
+
+
+    score_col1, score_col2, score_col3 = st.columns(3)
+
+
+    with score_col1:
+
+        st.metric(
+            "Skills",
+            f"{analysis.get('skills_score', 0)}/100"
+        )
+
+        st.metric(
+            "Experience",
+            f"{analysis.get('experience_score', 0)}/100"
+        )
+
+
+    with score_col2:
+
+        st.metric(
+            "Responsibilities",
+            f"{analysis.get('responsibilities_score', 0)}/100"
+        )
+
+        st.metric(
+            "Education",
+            f"{analysis.get('education_score', 0)}/100"
+        )
+
+
+    with score_col3:
+
+        st.metric(
+            "Keywords",
+            f"{analysis.get('keywords_score', 0)}/100"
+        )
+
+
+    # =====================================================
+    # STRENGTHS
+    # =====================================================
+
+    st.divider()
+
+    st.subheader("💪 Your Strengths")
+
+
+    strengths = analysis.get(
+        "strengths",
+        []
+    )
+
+
+    if strengths:
+
+        for strength in strengths:
+
+            st.success(
+                f"✓ {strength}"
+            )
+
+    else:
+
+        st.info(
+            "No specific strengths were identified."
+        )
+
+
+    # =====================================================
     # SKILLS
-    # -----------------------------------------------------
+    # =====================================================
 
-    col1, col2 = st.columns(2)
+    st.divider()
+
+    skill_col1, skill_col2 = st.columns(2)
 
 
-    with col1:
+    with skill_col1:
 
         st.subheader("✅ Matching Skills")
 
-        skills = result.get(
+        matching_skills = analysis.get(
             "matching_skills",
             []
         )
 
-        if skills:
 
-            for skill in skills:
+        if matching_skills:
 
-                st.success(skill)
+            for skill in matching_skills:
+
+                st.success(
+                    f"✓ {skill}"
+                )
 
         else:
 
@@ -466,20 +726,23 @@ if "analysis" in st.session_state:
             )
 
 
-    with col2:
+    with skill_col2:
 
         st.subheader("❌ Missing Skills")
 
-        skills = result.get(
+        missing_skills = analysis.get(
             "missing_skills",
             []
         )
 
-        if skills:
 
-            for skill in skills:
+        if missing_skills:
 
-                st.error(skill)
+            for skill in missing_skills:
+
+                st.error(
+                    f"✗ {skill}"
+                )
 
         else:
 
@@ -488,51 +751,57 @@ if "analysis" in st.session_state:
             )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # EXPERIENCE
-    # -----------------------------------------------------
+    # =====================================================
 
     st.divider()
 
-    col1, col2 = st.columns(2)
+    exp_col1, exp_col2 = st.columns(2)
 
 
-    with col1:
+    with exp_col1:
 
         st.subheader("💼 Relevant Experience")
 
-        experience = result.get(
+        matching_experience = analysis.get(
             "matching_experience",
             []
         )
 
-        if experience:
 
-            for item in experience:
+        if matching_experience:
 
-                st.success(item)
+            for experience in matching_experience:
+
+                st.success(
+                    f"✓ {experience}"
+                )
 
         else:
 
             st.info(
-                "No directly relevant experience identified."
+                "No directly relevant experience was identified."
             )
 
 
-    with col2:
+    with exp_col2:
 
         st.subheader("⚠️ Missing Experience")
 
-        experience = result.get(
+        missing_experience = analysis.get(
             "missing_experience",
             []
         )
 
-        if experience:
 
-            for item in experience:
+        if missing_experience:
 
-                st.warning(item)
+            for experience in missing_experience:
+
+                st.warning(
+                    f"⚠ {experience}"
+                )
 
         else:
 
@@ -541,221 +810,424 @@ if "analysis" in st.session_state:
             )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # EDUCATION
-    # -----------------------------------------------------
+    # =====================================================
 
     st.divider()
 
     st.subheader("🎓 Education Match")
 
-    st.write(
-        result.get(
+    st.info(
+        analysis.get(
             "education_match",
-            "No information available."
+            "No education analysis available."
         )
     )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # KEYWORDS
-    # -----------------------------------------------------
+    # =====================================================
 
-    col1, col2 = st.columns(2)
+    st.divider()
+
+    keyword_col1, keyword_col2 = st.columns(2)
 
 
-    with col1:
+    with keyword_col1:
 
         st.subheader("🔑 Matching Keywords")
 
-        keywords = result.get(
+        matching_keywords = analysis.get(
             "matching_keywords",
             []
         )
 
-        for keyword in keywords:
+
+        for keyword in matching_keywords:
 
             st.write(
                 f"• {keyword}"
             )
 
 
-    with col2:
+    with keyword_col2:
 
         st.subheader("🔎 Missing Keywords")
 
-        keywords = result.get(
+        missing_keywords = analysis.get(
             "missing_keywords",
             []
         )
 
-        for keyword in keywords:
+
+        for keyword in missing_keywords:
 
             st.write(
                 f"• {keyword}"
             )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # CV CHANGES
-    # -----------------------------------------------------
+    # =====================================================
 
     st.divider()
 
-    st.subheader(
-        "✏️ Changes Required in Your CV"
-    )
+    st.subheader("✏️ Changes Required in Your CV")
 
-    changes = result.get(
+
+    cv_changes = analysis.get(
         "cv_changes",
         []
     )
 
-    if changes:
 
-        for i, change in enumerate(
-            changes,
-            1
+    if cv_changes:
+
+        for number, change in enumerate(
+            cv_changes,
+            start=1
         ):
 
             st.write(
-                f"**{i}.** {change}"
+                f"**{number}.** {change}"
             )
 
     else:
 
         st.info(
-            "No major CV changes identified."
+            "No specific CV changes were identified."
         )
 
 
-    # -----------------------------------------------------
-    # IMPROVEMENT PLAN
-    # -----------------------------------------------------
+    # =====================================================
+    # EXPERIENCE TO GAIN
+    # =====================================================
+
+    st.divider()
 
     st.subheader(
-        "📚 Skills & Experience to Improve"
+        "💼 Experience You Should Gain"
     )
 
-    improvements = result.get(
-        "improvement_plan",
+
+    experience_required = analysis.get(
+        "experience_required",
         []
     )
 
-    if improvements:
 
-        for item in improvements:
+    if experience_required:
 
-            st.info(item)
+        for item in experience_required:
+
+            st.warning(
+                f"📌 {item}"
+            )
 
     else:
 
-        st.info(
-            "No additional improvements identified."
+        st.success(
+            "Your current experience appears sufficient."
         )
 
 
-    # -----------------------------------------------------
+    # =====================================================
+    # LEARNING PLAN
+    # =====================================================
+
+    st.divider()
+
+    st.subheader(
+        "📚 Recommended Learning Plan"
+    )
+
+
+    learning_plan = analysis.get(
+        "learning_plan",
+        []
+    )
+
+
+    if learning_plan:
+
+        for number, item in enumerate(
+            learning_plan,
+            start=1
+        ):
+
+            st.info(
+                f"**{number}.** {item}"
+            )
+
+    else:
+
+        st.success(
+            "No major learning gaps identified."
+        )
+
+
+    # =====================================================
+    # WEAKNESSES
+    # =====================================================
+
+    st.divider()
+
+    st.subheader("⚠️ Areas to Improve")
+
+
+    weaknesses = analysis.get(
+        "weaknesses",
+        []
+    )
+
+
+    if weaknesses:
+
+        for weakness in weaknesses:
+
+            st.warning(
+                f"• {weakness}"
+            )
+
+    else:
+
+        st.success(
+            "No major weaknesses identified."
+        )
+
+
+    # =====================================================
     # ATS TIPS
-    # -----------------------------------------------------
+    # =====================================================
+
+    st.divider()
 
     st.subheader(
         "🤖 ATS Optimization Tips"
     )
 
-    ats_tips = result.get(
+
+    ats_tips = analysis.get(
         "ats_tips",
         []
     )
 
-    for tip in ats_tips:
 
-        st.write(
-            f"• {tip}"
+    if ats_tips:
+
+        for tip in ats_tips:
+
+            st.write(
+                f"🔹 {tip}"
+            )
+
+    else:
+
+        st.info(
+            "No ATS tips available."
         )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # DOWNLOAD REPORT
-    # -----------------------------------------------------
+    # =====================================================
 
     st.divider()
 
-    report = f"""
-CV IMPROVER AI REPORT
-=====================
-
-Match Score: {score}/100
-
-Recommendation:
-{result.get("recommendation", "")}
+    st.subheader(
+        "📥 Download Your Report"
+    )
 
 
-SUMMARY
--------
-{result.get("summary", "")}
+    def create_report(data):
+
+        report = []
+
+        report.append("CV MATCH AI REPORT")
+        report.append("=" * 50)
+
+        report.append(
+            f"\nMATCH SCORE: "
+            f"{data.get('match_score', 0)}/100"
+        )
+
+        report.append(
+            f"\nRECOMMENDATION: "
+            f"{data.get('recommendation', '')}"
+        )
+
+        report.append(
+            "\n\nOVERALL ASSESSMENT"
+        )
+
+        report.append(
+            data.get("summary", "")
+        )
 
 
-MATCHING SKILLS
----------------
-{chr(10).join("- " + x for x in result.get("matching_skills", []))}
+        report.append(
+            "\n\nSTRENGTHS"
+        )
+
+        for item in data.get("strengths", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-MISSING SKILLS
---------------
-{chr(10).join("- " + x for x in result.get("missing_skills", []))}
+        report.append(
+            "\n\nMATCHING SKILLS"
+        )
+
+        for item in data.get("matching_skills", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-RELEVANT EXPERIENCE
--------------------
-{chr(10).join("- " + x for x in result.get("matching_experience", []))}
+        report.append(
+            "\n\nMISSING SKILLS"
+        )
+
+        for item in data.get("missing_skills", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-MISSING EXPERIENCE
-------------------
-{chr(10).join("- " + x for x in result.get("missing_experience", []))}
+        report.append(
+            "\n\nRELEVANT EXPERIENCE"
+        )
+
+        for item in data.get("matching_experience", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-EDUCATION
----------
-{result.get("education_match", "")}
+        report.append(
+            "\n\nMISSING EXPERIENCE"
+        )
+
+        for item in data.get("missing_experience", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-MATCHING KEYWORDS
------------------
-{chr(10).join("- " + x for x in result.get("matching_keywords", []))}
+        report.append(
+            "\n\nEDUCATION MATCH"
+        )
+
+        report.append(
+            data.get("education_match", "")
+        )
 
 
-MISSING KEYWORDS
-----------------
-{chr(10).join("- " + x for x in result.get("missing_keywords", []))}
+        report.append(
+            "\n\nMATCHING KEYWORDS"
+        )
+
+        for item in data.get("matching_keywords", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-CV CHANGES
-----------
-{chr(10).join("- " + x for x in result.get("cv_changes", []))}
+        report.append(
+            "\n\nMISSING KEYWORDS"
+        )
+
+        for item in data.get("missing_keywords", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-IMPROVEMENT PLAN
-----------------
-{chr(10).join("- " + x for x in result.get("improvement_plan", []))}
+        report.append(
+            "\n\nCV CHANGES REQUIRED"
+        )
+
+        for item in data.get("cv_changes", []):
+
+            report.append(
+                f"- {item}"
+            )
 
 
-ATS TIPS
---------
-{chr(10).join("- " + x for x in result.get("ats_tips", []))}
-"""
+        report.append(
+            "\n\nEXPERIENCE TO GAIN"
+        )
+
+        for item in data.get("experience_required", []):
+
+            report.append(
+                f"- {item}"
+            )
+
+
+        report.append(
+            "\n\nLEARNING PLAN"
+        )
+
+        for item in data.get("learning_plan", []):
+
+            report.append(
+                f"- {item}"
+            )
+
+
+        report.append(
+            "\n\nATS TIPS"
+        )
+
+        for item in data.get("ats_tips", []):
+
+            report.append(
+                f"- {item}"
+            )
+
+
+        return "\n".join(report)
+
+
+    report = create_report(
+        analysis
+    )
 
 
     st.download_button(
 
-        label="📥 Download Analysis Report",
+        label="📄 Download Analysis Report",
 
         data=report,
 
-        file_name="cv_improver_report.txt",
+        file_name="CV_Match_AI_Report.txt",
 
         mime="text/plain",
 
         use_container_width=True
     )
+
+
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.divider()
+
+st.caption(
+    "CV Match AI analyzes your resume against the provided "
+    "job description. AI-generated recommendations should "
+    "be reviewed before making changes to your CV."
+)
